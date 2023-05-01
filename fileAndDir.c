@@ -7,8 +7,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
+#include <fcntl.h>
 
-void processCSV(char *filePath){
+
+char *buildDir(){
     int newDir;
     char dirName[256] = "tanho.movies.";
     char randomNum[6];
@@ -26,15 +28,98 @@ void processCSV(char *filePath){
             strcat(dirName, randomNum);
         }
     }// Go through all the entries and check if the directory already existed
-    
-    newDir = mkdir(dirName, 0750);
+
+    newDir = mkdir(dirName, 0750); // mode: -rwxr-x--
     if (!newDir)
         printf("Created directory with name %s.\n", dirName);
     else {
         printf("Unable to create directory\n");
         exit(1);
     }
+    closedir(currDir);
+    return dirName;
+} // Build a new directory inside the current folder 
+
+typedef struct movie
+{
+    char movieTitle[51];
+    int movieYear;
+    struct movie* pre;
+    struct movie* next;
+} movie;
+
+struct movie* processFile(char *filePath){
+    FILE* myDataFile = fopen(filePath, "r"); // Open up the data file
+    char fileName[100];//stores user's input file name
+    char* readBuffer = NULL; // Will store a line from the file, allocated on heap
+    size_t len = 0; // ignored by getline, but required
+    int movieCount = 0;
+    struct movie* head = (movie*)malloc(sizeof(movie));
+   
+    //read all data from the file and process it. then stdout: "Processed file XYZ and parsed data for M movies"
     
+    if (myDataFile == NULL) { printf("fopen() failed\n"); return -1; } // Error check fopen()
+    struct movie* current = head;
+    struct movie* pre = NULL;
+
+    while (getline(&readBuffer, &len, myDataFile) != -1) { // Read the file line by line
+        if (movieCount > 0) {
+            //printf("%s\n", readBuffer); // Display the line
+            char* saveptr1;
+            char* saveptr2;
+            char* tok = strtok_r(readBuffer, ",", &saveptr1); //get movie title
+            strcpy(current->movieTitle, tok);//get name
+
+            tok = strtok_r(NULL, ",", &saveptr1);
+            current->movieYear = atoi(tok);//get year
+
+            tok = strtok_r(NULL, ",", &saveptr1);   //skip the language
+            tok = strtok_r(NULL, ",", &saveptr1);   //skip the rate
+
+            current->next = (movie*)malloc(sizeof(movie));
+            pre = current;
+            current = current->next; 
+            current->pre = pre;
+            memset(readBuffer, '\0', sizeof(readBuffer)); // Clear the reading buffer
+        }
+        movieCount++;
+    };
+    movieCount--;
+    return head;
+}//Return a linked list of movies by parsing data from input file 
+//some codes are from the previous assignment movie.c
+
+
+void printList(struct movie* n){
+    while (n != NULL) {
+        printf("n->movieTitle: %s\n", n->movieTitle);
+        printf("n->movieYear: %d\n", n->movieYear);
+        n = n->next;
+    }
+}
+
+void processCSV( char *filePath){
+    printf("Now processing the chosen file named %s\n", filePath);
+    char dirPath[256];
+    strcpy(dirPath, buildDir());
+    struct movie* head = processFile(filePath);
+    int fileDescriptor;
+    char txtPath[256];
+    while (head->movieYear != 0) {
+        char yearReleased[4]; // store the released year in string
+        sprintf(yearReleased, "%d", head->movieYear); // convert the int year to str year
+        sprintf(txtPath, "%s/%d.txt", dirPath, head->movieYear); // build the txt file path
+
+        // open the file, if not exist create it, then write the movie tilte into the txt file
+        fileDescriptor = open(txtPath, O_RDWR | O_CREAT | O_APPEND, 0640);
+        write(fileDescriptor, head->movieTitle, strlen(head->movieTitle));
+        write(fileDescriptor, "\n", 1);
+        close(fileDescriptor);
+        
+        printf("txtPath: %s\n", txtPath);
+        head = head->next;
+    }
+
 }
 
 typedef struct moviesFile {
@@ -56,6 +141,7 @@ int main(int argc, char* argv[]){
     struct stat dirStat;
     int i = 0;
     char fileChoice[256];
+
     /////////////////////////////
     // Open the current directory
     DIR* currDir = opendir(".");
@@ -115,15 +201,13 @@ int main(int argc, char* argv[]){
                 
                 scanf("%s", userStr2);
                 userChoice2 = atoi(userStr2);
-
+                int found = 0;// one for found the input file, zero for not 
                 switch(userChoice2){
                     case 1: 
-                        printf("\nNow processing the chosen file named %s\n", largestFile.name);
                         processCSV(largestFile.name);
                         break;
                     
-                    case 2:
-                        printf("\nNow processing the chosen file named %s\n", smallestFile.name);
+                    case 2:                       
                         processCSV(smallestFile.name);
                         break;
                     
@@ -131,8 +215,18 @@ int main(int argc, char* argv[]){
                         printf("Enter the complete file name:");
                         scanf("%s", fileChoice);
                         currDir = opendir(".");
+                        while((aDir = readdir(currDir)) != NULL){ //go through each file of the directory, if matches process the file
+                            if(strncmp(fileChoice, aDir->d_name, strlen(aDir->d_name)) == 0){
+                                processCSV(fileChoice);
+                                found = 1;
+                                break;
+                            }
+                        }
+                        if (found != 1){
+                            printf("\nThe file %s was not found. Try again\n", fileChoice);
+                            userChoice2 = 0;
+                        }
                         closedir(currDir);
-                        userChoice2 = 0;
                         break;
                     
                     default: 
