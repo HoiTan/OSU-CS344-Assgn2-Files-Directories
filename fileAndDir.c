@@ -18,16 +18,16 @@ char *buildDir(){
     struct dirent *aDir;
     srand(time(0));
 
-    sprintf(randomNum, "%d", rand() % 99999);
-    strcat(dirName, randomNum);
+    sprintf(dirName, "%s%d", dirName, rand() % 99999);
     
     while((aDir = readdir(currDir)) != NULL){
         if(strncmp(dirName, aDir->d_name, strlen(dirName)) == 0){
             strcpy(dirName, "tanho.movies.");
-            sprintf(randomNum, "%d", rand() % 99999);
-            strcat(dirName, randomNum);
+            sprintf(dirName, "%s%d", dirName, rand() % 99999);
+            checkSameFile = 1;
         }
-    }// Go through all the entries and check if the directory already existed
+    }   // Go through all the entries and check if the directory already existed for once
+        //how high chance could it be generating a same dir name twice 
 
     newDir = mkdir(dirName, 0750); // mode: -rwxr-x--
     if (!newDir)
@@ -96,7 +96,7 @@ void printList(struct movie* n){
         printf("n->movieYear: %d\n", n->movieYear);
         n = n->next;
     }
-}
+}//testing funcion: check if the linked list work
 
 void processCSV( char *filePath){
     printf("Now processing the chosen file named %s\n", filePath);
@@ -106,8 +106,6 @@ void processCSV( char *filePath){
     int fileDescriptor;
     char txtPath[256];
     while (head->movieYear != 0) {
-        char yearReleased[4]; // store the released year in string
-        sprintf(yearReleased, "%d", head->movieYear); // convert the int year to str year
         sprintf(txtPath, "%s/%d.txt", dirPath, head->movieYear); // build the txt file path
 
         // open the file, if not exist create it, then write the movie tilte into the txt file
@@ -116,7 +114,7 @@ void processCSV( char *filePath){
         write(fileDescriptor, "\n", 1);
         close(fileDescriptor);
         
-        printf("txtPath: %s\n", txtPath);
+        //printf("txtPath: %s\n", txtPath);
         head = head->next;
     }
 
@@ -157,21 +155,20 @@ int main(int argc, char* argv[]){
             // printf("dirStat.st_size: %d\n", dirStat.st_size);
 
             if (largestFile.name[0] == '\0' || dirStat.st_size > largestFile.size){
+                // if the file has a size larger than the current largest file, replace it
                 if (smallestFile.name[0] == '\0'){
                     strcpy(smallestFile.name, aDir->d_name);
                     smallestFile.size = dirStat.st_size;
-                    printf("smallestFile.name: %s\n",smallestFile.name);
                 }
-                    strcpy(largestFile.name, aDir->d_name);
-                    largestFile.size = dirStat.st_size;
-                    printf("largestFile.name: %s\n",largestFile.name);
-            }
+                strcpy(largestFile.name, aDir->d_name);
+                largestFile.size = dirStat.st_size;
+            }   //if largestFile and smallestFile is empty, fill in with the first file
 
             else if (dirStat.st_size < largestFile.size){
                 if (dirStat.st_size < smallestFile.size){
+                    // if the file has a size smaller than the current smallest file, replace it
                     strcpy(smallestFile.name, aDir->d_name);
                     smallestFile.size = dirStat.st_size;
-                    printf("smallestFile.name: %s\n",smallestFile.name);
                 }
             }
         }
